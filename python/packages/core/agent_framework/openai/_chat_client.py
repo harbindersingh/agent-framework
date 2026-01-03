@@ -254,18 +254,18 @@ class OpenAIBaseChatClient(OpenAIBase, BaseChatClient):
         chunk: ChatCompletionChunk,
     ) -> ChatResponseUpdate:
         """Parse a streaming response update from OpenAI."""
+        """
+    Gemini OpenAI-compat can include `usage` on chunks that ALSO carry text deltas. The base OpenAIChatClient returns early when chunk.usage exists, dropping text. This override merges usage + deltas into the same update."""
         chunk_metadata = self._get_metadata_from_streaming_chat_response(chunk)
-        if chunk.usage:
-            return ChatResponseUpdate(
-                role=Role.ASSISTANT,
-                contents=[UsageContent(details=self._parse_usage_from_openai(chunk.usage), raw_representation=chunk)],
-                model_id=chunk.model,
-                additional_properties=chunk_metadata,
-                response_id=chunk.id,
-                message_id=chunk.id,
-            )
+
         contents: list[Contents] = []
         finish_reason: FinishReason | None = None
+        # Keep usage but don't return early
+        if chunk.usage:
+            contents.append(
+                UsageContent(details=self._parse_usage_from_openai(chunk.usage), raw_representation=chunk)
+         )
+            
         for choice in chunk.choices:
             chunk_metadata.update(self._get_metadata_from_chat_choice(choice))
             contents.extend(self._parse_tool_calls_from_openai(choice))
